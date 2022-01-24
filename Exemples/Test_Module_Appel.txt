@@ -1,0 +1,13 @@
+# utilisation de module
+
+include("Test_Module.txt")
+
+function main()
+  s=MonModule.test_struct()
+  println("S= ",s.S)
+  s.A=3.14
+  println("A= ",s.A)
+
+  MonModule.hello()
+end
+main()

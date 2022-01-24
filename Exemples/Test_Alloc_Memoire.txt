@@ -1,0 +1,31 @@
+# test allocation memoire - 
+function main()
+  println("je suis dans main")
+  # tableau 3 dimensions
+  T_3D=[]
+
+  for k in 1:2
+    push!(T_3D,[])
+    for i in 1:2
+      push!(T_3D[k],[])
+    end
+    for i in 1:2
+      for j in 1:2
+        push!(T_3D[k][i],k-1+i+j) # ici on push une valeur
+      end
+    end
+  end # for k
+
+  # les impressions
+  for k in 1:2
+    println("k=",k)
+    for i in 1:2
+      for j in 1:2
+        print(" ",T_3D[k][i][j])
+      end
+      println(" ")
+    end
+  end # for k
+
+end
+main()

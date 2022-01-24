@@ -1,0 +1,7 @@
+# test ecriture fichier 
+io=open("myfile.txt", "w")
+
+write(io,"hello word\n")
+
+write(io,"hello word 1")
+

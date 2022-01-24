@@ -1,0 +1,74 @@
+function lecture_fichier(T_2D)
+# lecture de la matrice d'adjacence du graphe
+  println("je suis dans lecture fichier")
+  lines = readlines("Data_Parcours_Graphe.txt")
+  line=lines[1]
+  line_decompose=split(line)
+  n=parse(Int64, line_decompose[1])
+  # on réserve la place pour le tableau T_2D
+  for i in 1:n
+    push!(T_2D,[])
+  end
+  for i in 1:n
+    for j in 1:n
+      push!(T_2D[i],0)
+    end
+  end
+
+  # maintenant on traite les lignes suivantes
+  line_suiv=1
+  for i in line_suiv+1:line_suiv+n 
+    line=lines[i]
+    line_decompose=split(line)
+    som_deb=i-line_suiv
+    for j in 1:n
+      som_fin=j
+      pds=parse(Int64, line_decompose[j])
+      T_2D[som_deb][som_fin]=pds
+    end
+  end
+  return n
+end
+
+
+
+function Parcours_Graph(i::Int,Mat,n::Int,Cycle)
+# parcours graphe en profondeur d'abord
+# par fonction récursive
+#
+  println("je suis dans Parcours_Graph ")
+  # Cycle table à une dimension qui indique si les sommets sont parcourus dans le cycle
+
+  println("le sommet de depart ",i)
+  
+  
+  for j in 1:n
+    if Mat[i][j]==1 && Cycle[j]!=1
+      Cycle[j]=1
+      # le sommet suivant est j
+      Parcours_Graph(j,Mat,n,Cycle)
+    end # fin du if
+  end # fin du for
+ 
+end
+
+function main()
+  Mat=[]
+  # lecture matrice d'adjacence
+  n=lecture_fichier(Mat)
+  # preparation de Cycle : Cycle(i]=1 ssi i a été parcouru
+  Cycle=[]
+  for i in 1:n
+    push!(Cycle,0)
+  end
+  # on parcourt les sommets du graphe
+  i=1; indic=1 ; Cycle[i]=1
+  Parcours_Graph(i,Mat,n,Cycle)
+  #
+  println("Cycle ")
+  for i in 1:n
+    println(" ",i," ",Cycle[i])
+  end
+end
+# appel de la fonction main
+main()

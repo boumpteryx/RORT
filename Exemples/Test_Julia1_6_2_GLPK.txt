@@ -1,0 +1,87 @@
+# test avec GLPK
+# julia 1.6.2
+# pb de sac-à-dos
+#
+using JuMP, GLPK #CPLEX #GLPK
+using GLPKMathProgInterface # interface GLPK
+println(" CHARGE fait")
+
+mutable struct Data
+  println(" je suis dans mutable struct Data")
+  n::Int # nbre de dimensions du vecteur x
+  a::Vector{Float64} # vecteur a
+  c::Vector{Float64} # vecteur c
+  b::Float64 # capacite du sac
+  # on reserve de la place pour les donnees
+  function Data()
+    println("je suis dans la fonction Data")
+    this=new()
+    this.n=10 # ici il faut mettre le nombre max de dimensions
+    # initialise vecteur a 
+    this.a=[]
+    for i in 1:this.n  
+      push!(this.a, 0.0) # on remplit la ligne de zéros
+    end
+    # initialise vecteur c 
+    this.c=[]
+    for i in 1:this.n  
+      push!(this.c, 0.0) # on remplit la ligne de zéros
+    end
+    this.b=0
+    
+    return this # ne pas oublier ce return this
+  end # fin de la fonction Data
+
+
+end # fin de struct Data
+
+function Prog_math(sv::Data)
+# progr. math. pour le sac-a-dos
+  println("je suis dans Prog_math")
+  m = Model(GLPK.Optimizer)
+  @variable(m, 0<=x[1:sv.n]<=1) # variables x bornees par 1
+  @constraint(m, contr[j in 1:1], sum(sv.a[i]*x[i] for i in 1:sv.n)<= sv.b )
+  @expression(m, obj, sum(sv.c[i]*x[i] for i in 1:sv.n) )
+  @objective(m, Max, obj)
+  print(m)
+  optimize!(m)
+  # termination_status`, `primal_status` and `dual_status`.
+  println("Valeur objectif: ", JuMP.getvalue(obj))
+  for i in 1:sv.n
+    println("x[",i,"] = ", JuMP.getvalue(x[i]))   
+  end
+  #
+  lambda=dual(contr[1])
+  println("var duale ",lambda)
+  for i in 1:sv.n
+    println("dual x_",i,"<1 ",dual(UpperBoundRef(x[i])))
+  end
+  #
+  # je rajoute variable y
+  @variable(m, 1>=y>=0)
+  set_objective_coefficient(m, y, 4)
+  set_normalized_coefficient(contr[1], y, 2)
+  set_binary(y)
+  println("\n nouveau PL")
+  print(m)
+  optimize!(m)
+  println("Valeur objectif: ", getobjectivevalue(m))
+  for i in 1:sv.n
+    println("x[",i,"] = ", JuMP.getvalue(x[i]))   
+  end
+  println("y = ", JuMP.getvalue(y))
+end
+
+function main()
+  println("bonjour - Sac a dos")
+  sv=Data()
+  println("nbre dim max ",sv.n," a ",sv.a," c ",sv.c)
+  # j initialise les donnees
+  sv.n=3
+  sv.a[1]=1;sv.a[2]=2;sv.a[3]=3;
+  sv.c[1]=3;sv.c[2]=2;sv.c[3]=1;
+  sv.b=3
+  #
+  Prog_math(sv)
+end
+main()

@@ -1,0 +1,24 @@
+# test module
+# dans un module on peut mettre des fonctions, des structures qui sont utilisées ailleurs
+# cela permet le regroupement de structures, de fonctions communes à plusieurs utilisateurs
+#
+module MonModule
+
+mutable struct test_struct
+  S::Int
+  A::Float64
+  function test_struct()
+    println("je suis test_struct")
+    this=new()
+    this.S=0
+    this.A=0.0
+    return this
+  end
+
+end # structure test_struct
+
+function hello()
+  println("hello")
+end
+
+end # fin du module
