@@ -17,14 +17,15 @@ function read_instance(MyFileName::String)
     readline(myFile)
     nb_nodes = parse(Int64, split(readline(myFile), " ")[2])
     nb_arcs = parse(Int64, split(readline(myFile), " ")[2])
-    latency = Array{Int64,2}(zeros(n,n))
+    latency = Array{Int64,2}(zeros(nb_nodes,nb_nodes))
     nb_functions_per_node = Array{Int64,1}(zeros(nb_nodes))
-    for i in [1:nb_arcs]
-      line = parse(Int64, split(readline(myFile), " "))
-      latency[line[1],line[2]] = line[5]
-      nb_functions_per_node[line[1]] = line[3]
-      nb_functions_per_node[line[2]] = line[4]
+    for i in 1:nb_arcs
+      line = parse.(Int64, split(readline(myFile), " "))
+      latency[line[1]+1,line[2]+1] = line[5]
+      nb_functions_per_node[line[1]+1] = line[3]
+      nb_functions_per_node[line[2]+1] = line[4]
     end
+  end
 
   # Commodity
   if isfile(path_Commodity)
@@ -32,22 +33,27 @@ function read_instance(MyFileName::String)
     readline(myFile)
     nb_commodities = parse(Int64, split(readline(myFile), " ")[2])
     commodity = Array{Int64,2}(zeros(nb_commodities,4))
-    for i in [1:nb_commodities]
-      line = parse(Int64, split(readline(myFile), " "))
-      commodity[i] = line
+    for i in 1:nb_commodities
+      line = parse.(Int64, split(readline(myFile), " "))
+      commodity[i,1] = line[1] + 1
+      commodity[i,2] = line[2] + 1
+      commodity[i,3] = line[3]
+      commodity[i,4] = line[4]
     end
+  end
 
   # Fct_commod
   if isfile(path_Fct_commod)
     myFile = open(path_Fct_commod)
     Fct_commod = Array{Int64,2}(zeros(nb_commodities,1))
-		for i in [1:nb_commodities]
-      line = parse(Int64, split(readline(myFile), " "))
+		for i in 1:nb_commodities
+      line = parse.(Int64, split(readline(myFile), " "))
       Fct_commod[i,1] = line[1]
-      for j in [2:length(line)]:
+      for j in [2:length(line)]
         Fct_commod[i] = vcat(Fct_commod[i], [line[j] + 1])
       end
     end
+  end
 
   # Functions
   if isfile(path_Functions)
@@ -56,24 +62,25 @@ function read_instance(MyFileName::String)
     nb_func = parse(Int64, split(readline(myFile), " ")[2])
     func_capacity = Array{Int64,1}(zeros(nb_func))
     func_cost = Array{Int64,2}(zeros(nb_func,nb_nodes))
-    for i in [1:nb_func]
-      line = parse(Int64, split(readline(myFile), " "))
+    for i in 1:nb_func
+      line = parse.(Int64, split(readline(myFile), " "))
       func_capacity[i] = line[1]
       popfirst!(line)
       func_cost[i] = line
     end
+  end
 
   # Affinity
   if isfile(path_Affinity)
     myFile = open(path_Affinity)
     exclusion = Array{Int64,2}(zeros(nb_commodities,2))
-    for i in [1:nb_commodities]
-      line = parse(Int64, split(readline(myFile), " "))
+    for i in 1:nb_commodities
+      line = parse.(Int64, split(readline(myFile), " "))
       if length(line) >=2
         exclusion[i,1] = line[1] + 1
         exclusion[i,2] = line[2] + 1
       end
     end
-
+  end
   return cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, nb_functions_per_node, commodity, nb_func, exclusion
 end

@@ -20,3 +20,5 @@ function myModel(MyFileName::String)
   #resolution
   optimize!(m)
 end
+
+myModel("test")
