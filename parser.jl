@@ -40,11 +40,12 @@ function read_instance(MyFileName::String)
   # Fct_commod
   if isfile(path_Fct_commod)
     myFile = open(path_Fct_commod)
-    Fct_commod = Array{Int64,1}(zeros(nb_commodities))
+    Fct_commod = Array{Int64,2}(zeros(nb_commodities,1))
 		for i in [1:nb_commodities]
       line = parse(Int64, split(readline(myFile), " "))
-      for j in [1:length(line)]:
-        Fct_commod = vcat(Fct_commod, [line[j] + 1])
+      Fct_commod[i,1] = line[1]
+      for j in [2:length(line)]:
+        Fct_commod[i] = vcat(Fct_commod[i], [line[j] + 1])
       end
     end
 
