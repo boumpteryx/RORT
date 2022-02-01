@@ -75,6 +75,5 @@ function read_instance(MyFileName::String)
       end
     end
 
-
   return cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, nb_functions_per_node, commodity, nb_func, exclusion
 end
