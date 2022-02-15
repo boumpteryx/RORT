@@ -2,9 +2,10 @@ using JuMP
 using CPLEX
 include("parser.jl")
 
-export Static
 
-function Static(fileName :: String)
+export Relaxed
+
+function Relaxed(fileName :: String)
 	cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
 
 	tab=Vector{int64}(zeros(n_commodities))
@@ -15,15 +16,20 @@ function Static(fileName :: String)
 	m = Model(CPLEX.Optimizer)
 
 	# Var
-	@variable(m, x_i[1:nb_nodes], Bin) #activation d'une fonction au sommet i
+	@variable(m, x_i[1:nb_nodes] >= 0) #activation d'une fonction au sommet i RELAXE
 
 	@variable(m, x_fi[1:nb_func,1:nb_nodes], Int64) #activation de la fonction f au sommet i
 
-	@variable(m, x_ikf[1:nb_nodes,1:nb_commodities,1:nb_func], Bin) #activation de la fonction f au sommet i pour le traitement de la commodité k
+	@variable(m, x_ikf[1:nb_nodes,1:nb_commodities,1:nb_func] >= 0) #activation de la fonction f au sommet i pour le traitement de la commodité k RELAXE
 
-	@variable(m, e[1:nb_nodes,1:nb_nodes,1:nb_commodities,1:nb_func+1], Bin) #passage par l'arc (i,j) par la commodité k lpour traitement par la fonction f, ou en direction du puit si on considère e[i,j,k,end]
+	@variable(m, e[1:nb_nodes,1:nb_nodes,1:nb_commodities,1:nb_func+1] >= 0) #passage par l'arc (i,j) par la commodité k lpour traitement par la fonction f, ou en direction du puit si on considère e[i,j,k,end] RELAXE
 
-	#Constraint on states
+	# Constraint on states
+  @constraint(m, [i in 1:nb_nodes], x_i[i] <= 1) # RELAXE
+  @constraint(m, [i in 1:nb_nodes, k in 1:nb_commodities, f in 1:nb_func], x_ikf[i,k,f] >= 0) # RELAXE
+  @constraint(m, [i in 1:nb_nodes, j in 1:nb_nodes, k in 1:nb_commodities, f in 1:nb_func+1], e[i,j,k,f] <= 1) # RELAXE
+
+
 	for i in 1:nb_nodes
 		@constraint(m,[f in 1:nb_func],x_fi[f,i]*func_capacity[f] >= sum(x_ikf[i,k,f]*commodity[k,3] for k in 1:nb_commodities)) #Nombre de fonctions f à placer en i
 		@constraint(m,sum(x_fi[f,i] for f in 1:nb_func) <= node_capacity[i] ) #capacité de noeud
