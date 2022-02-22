@@ -25,6 +25,7 @@ function read_instance(MyFileName::String)
       nb_functions_per_node[line[1]+1] = line[3]
       nb_functions_per_node[line[2]+1] = line[4]
     end
+    close(myFile)
   end
 
   # Commodity
@@ -40,23 +41,10 @@ function read_instance(MyFileName::String)
       commodity[i,3] = line[3]
       commodity[i,4] = line[4]
     end
+    close(myFile)
   end
 
-  # Fct_commod
-  if isfile(path_Fct_commod)
-    myFile = open(path_Fct_commod)
-    Fct_commod = Array{Int64,2}(zeros(nb_commodities,1))
-		for i in 1:nb_commodities
-      line = parse.(Int64, split(readline(myFile), " "))
-      Fct_commod[i,1] = line[1] + 1
-      if length(line) >= 2
-        for j in 2:length(line)
-          vcat(Fct_commod[i], line[j] + 1)
-        end
-      end
-    end
-  end
-
+  
   # Functions
   if isfile(path_Functions)
     myFile = open(path_Functions)
@@ -72,7 +60,24 @@ function read_instance(MyFileName::String)
         func_cost[i,j] = line[j]
       end
     end
+    close(myFile)
   end
+  
+  # Fct_commod
+  if isfile(path_Fct_commod)
+    myFile = open(path_Fct_commod)
+    Fct_commod = Array{Int64,2}(zeros(nb_commodities,nb_func))
+		for i in 1:nb_commodities
+      line = parse.(Int64, split(readline(myFile), " "))
+      cpt=1
+      for f in line
+        Fct_commod[i,f+1]=cpt
+        cpt=cpt+1
+      end
+    end
+    close(myFile)
+  end
+
 
   # Affinity
   if isfile(path_Affinity)
@@ -85,6 +90,67 @@ function read_instance(MyFileName::String)
         exclusion[i,2] = line[2] + 1
       end
     end
+    close(myFile)
   end
   return cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, nb_functions_per_node, commodity, nb_func, exclusion
 end
+
+function write_results(fileName,e,x_ikf)
+  
+  cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
+  
+  if !isfile("./Resultats/"*fileName*".txt") 
+		touch("./Resultats/"*fileName*".txt")
+	end
+	file = open("./Resultats/"*fileName*".txt","w")
+
+	for k in 1:nb_commodities
+    size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
+		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
+		write(file,"commod "*string(k)*'\n')
+		
+    #write source to first function
+		s=commodity[k,1]
+		p= findall( y -> y == 1., x_ikf[:,k,tab_fk[1]])[1,1,1]
+		sol=string(s)
+		i=s
+		while i!=p
+			i=findall(y->y==1., e[i,:,k,tab_fk[1]])[1,1,1,1]
+			sol=sol*" "*string(i)
+		end
+		sol=sol*'\n'
+		write(file,sol)
+		
+    #write function to function
+		for f in tab_fk[2:end]
+			s=p
+			p= findall( y -> y == 1., x_ikf[:,k,f])[1,1,1]
+			sol=string(s)
+			i=s
+			while i!=p
+				i=findall(y->y==1., e[i,:,k,f])[1,1,1,1]
+				sol=sol*" "*string(i)
+			end
+			sol=sol*'\n'
+			write(file,sol)
+		end
+    
+    #write function to sink
+    s=p
+    p=commodity[k,2]
+    sol=string(s)
+    i=s
+    while i!=p
+      i=findall(y->y==1., e[i,:,k,end])[1,1,1,1]
+      sol=sol*" "*string(i)
+    end
+    sol=sol*'\n'
+    write(file,sol)
+	end
+	
+	close(file)
+end
+
+
+
+
