@@ -2,26 +2,27 @@ using JuMP
 using CPLEX
 include("parser.jl")
 
-function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion, y_fi, x_fi_prec)
+function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion, y_fi, x_fi_prec, remaining_capacity_fi)
   # version modifiee du PL normal
   # on ajoute y_fi qui decrit combien de place de fonction f au sommet i il reste de par les commodites precedentes. y_fi est une donnee du probleme TODO, optionnel mais important
   # on ajoute la contrainte de non-overlap entre les fonctions de x_fi_prec et celles posees dans cette instance DONE
+  # remaining_capacity_fi TODO
 
   m = Model(CPLEX.Optimizer)
 
 	# Var
 	@variable(m, x_i[1:nb_nodes], Bin) # activation d'une fonction au sommet i
 	@variable(m, x_fi[1:nb_func,1:nb_nodes], Int) # activation de la fonction f au sommet i
-	@variable(m, x_ikf[1:nb_nodes,1:nb_commodities,1:nb_func], Bin) # activation de la fonction f au sommet i pour le traitement de la commodité k
-	@variable(m, e[1:nb_nodes,1:nb_nodes,1:nb_commodities,1:nb_func+1], Bin) # passage par l'arc (i,j) par la commodité k lpour traitement par la fonction f, ou en direction du puit si on considère e[i,j,k,end]
+	@variable(m, x_ikf[1:nb_nodes,1:nb_commodities,1:nb_func], Bin) # activation de la fonction f au sommet i pour le traitement de la commodite k
+	@variable(m, e[1:nb_nodes,1:nb_nodes,1:nb_commodities,1:nb_func+1], Bin) # passage par l'arc (i,j) par la commodite k lpour traitement par la fonction f, ou en direction du puit si on considère e[i,j,k,end]
 
 	#Constraint on states
 	for i in 1:nb_nodes
-		@constraint(m,[f in 1:nb_func],x_fi[f,i]*func_capacity[f] >= sum(x_ikf[i,k,f]*commodity[k,3] for k in 1:nb_commodities), base_name = "n_"*string(f)*"_"*string(i)) # Nombre de fonctions f à placer en i
-		@constraint(m,sum(x_fi[f,i] for f in 1:nb_func) <= node_capacity[i], base_name = "cap_"*string(i) ) #capacité de noeud
+		@constraint(m,[f in 1:nb_func], x_fi[f,i]*func_capacity[f] + remaining_capacity_fi[f,i] >= sum(x_ikf[i,k,f]*commodity[k,3] for k in 1:nb_commodities), base_name = "n_"*string(f)*"_"*string(i)) # Nombre de fonctions f à placer en i
+		@constraint(m,sum(x_fi[f,i] for f in 1:nb_func) <= node_capacity[i], base_name = "cap_"*string(i) ) #capacite de noeud
     for k in 1:nb_commodities
 			@constraint(m,[f in 1:nb_func],x_i[i] >= x_ikf[i,k,f], base_name = "ouverture_"*string(i)*"_"*string(f)) #ouverture du noeud en i
-			#@constraint(m,[f in 1:nb_func],x_ikf[i,k,f] <= length( findall( y -> y == f, Fct_commod[k] ))) #fixer à 0 x_ikf si fonction f n'est pas à appliquer à commodité k (donc pas sur le noeud i en particulier)
+			#@constraint(m,[f in 1:nb_func],x_ikf[i,k,f] <= length( findall( y -> y == f, Fct_commod[k] ))) #fixer à 0 x_ikf si fonction f n'est pas à appliquer à commodite k (donc pas sur le noeud i en particulier)
 			if size(exclusion[k,:])[1]>0
 				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:]) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
         # @constraint(m,sum(x_ikf[i,k,w] for w in x_fi_prec[k,:]) <= 1) #contrainte non liante en fait
@@ -35,7 +36,7 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 	end
 
 
-	#Contrainte de flots successifs pour chaque commodité
+	#Contrainte de flots successifs pour chaque commodite
 	for k in 1:nb_commodities
 		size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
 
@@ -63,8 +64,12 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 	@objective(m, Min, sum(x_i[i]*cout_ouverture[i] + sum(x_fi[f,i]*func_cost[f,i] for f in 1:nb_func) for i in 1:nb_nodes) )
 
 	optimize!(m)
-
-  return JuMP.value.(x_i), JuMP.objective_value.(m),  JuMP.value.(x_fi)
+  for i in 1:nb_nodes
+    for f in 1:nb_func
+      remaining_capacity_fi[f,i] = JuMP.value.(x_fi)[f,i]*func_capacity[f] + remaining_capacity_fi[f,i] - JuMP.value.(x_ikf)[i,1,f]*commodity[1,3] # mise a jour de la capacite restante sur les noeuds
+    end
+  end
+  return JuMP.value.(x_i), JuMP.objective_value.(m),  JuMP.value.(x_fi), remaining_capacity_fi
 end
 
 
@@ -85,8 +90,9 @@ function heuristic(MyFileName::String)
   exclusion_new[1,:] = exclusion[1,:]
   commodity_new = Array{Int64,2}(zeros(1,4))
   commodity_new[1,:] = commodity[1,:]
+  remaining_capacity_fi = Array{Int64,2}(zeros(nb_func,nb_nodes))
 
-  x_i, current_objective, x_fi = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec)
+  x_i, current_objective, x_fi, remaining_capacity_fi = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec, remaining_capacity_fi)
 
   for i in 2:nb_commodities
   println("commodite ", i)
@@ -120,7 +126,7 @@ function heuristic(MyFileName::String)
     exclusion_new[1,:] = exclusion[i,:]
     commodity_new = Array{Int64,2}(zeros(1,4))
     commodity_new[1,:] = commodity[i,:]
-    x_i, current_objective, x_fi = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec)
+    x_i, current_objective, x_fi, remaining_capacity_fi = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec, remaining_capacity_fi)
   end
 
   return sum_objectives
