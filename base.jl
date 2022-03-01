@@ -27,8 +27,8 @@ function Static(fileName :: String,silent=false)
 		for k in 1:nb_commodities
 			@constraint(m,[f in 1:nb_func],x_i[i] >= x_ikf[i,k,f], base_name = "ouverture_"*string(i)) #ouverture du noeud en i
 			if size(exclusion[k,:])[1]>0
-				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:]) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
-			end				
+				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:] if w!=0) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
+			end
 			for j in 1:nb_nodes
 				if latency[i,j] == 0
 					@constraint(m,[f in 1:nb_func+1],e[i,j,k,f]==0, base_name = "no_arc_"*string(i)*"_"*string(j)) #absence d'arcs
@@ -36,12 +36,12 @@ function Static(fileName :: String,silent=false)
 			end
 		end
 	end
-	
-	
+
+
 	#Contrainte de flots successifs pour chaque commodité
 	for k in 1:nb_commodities
 		size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
-		
+
 		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
 
 		@constraint(m,sum(e[commodity[k,1],j,k,tab_fk[1]] - e[j,commodity[k,1],k,tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],k,tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot à la source
@@ -52,7 +52,7 @@ function Static(fileName :: String,silent=false)
 		@constraint(m,[i in 1:nb_nodes ; i!=commodity[k,2]],sum(e[i,j,k,nb_func+1] - e[j,i,k,nb_func+1] for j in 1:nb_nodes)-x_ikf[i,k,tab_fk[end]]==0, base_name = "last_flow_"*string(k)) #flot du dernier traitement vers le puit
 		@constraint(m,sum(e[j,commodity[k,2],k,end] for j in 1:nb_nodes)+x_ikf[commodity[k,2],k,tab_fk[end]]==1, base_name = "end_flow_"*string(k)) #fin de flot sur le puit
 	end
-	
+
 	for k in 1:nb_commodities
 		for f in 1:nb_func
 			@constraint(m,sum(x_ikf[i,k,f] for i in 1:nb_nodes)<=1, base_name = "concatenation_"*string(k)*"_"*string(f)) #concatenation des problemes de flot
@@ -64,10 +64,10 @@ function Static(fileName :: String,silent=false)
 
 	#Objective
 	@objective(m, Min, sum(x_i[i]*cout_ouverture + sum(x_fi[f,i]*func_cost[f,i] for f in 1:nb_func) for i in 1:nb_nodes) )
-		
+
 	optimize!(m)
-	
-	if !silent 
+
+	if !silent
 		println(solution_summary(m))
 
 		e=JuMP.value.(e)
@@ -80,6 +80,4 @@ function Static(fileName :: String,silent=false)
 	return isOptimal, JuMP.value.(x_i), JuMP.value.(x_fi), JuMP.value.(x_ikf), JuMP.value.(e)
 end
 
-Static("test")
-
-
+Static("grille2x3")

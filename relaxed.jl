@@ -7,7 +7,7 @@ export Relaxed
 
 function Relaxed(fileName :: String, silent=false)
 	cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
-	
+
 	m = Model(CPLEX.Optimizer)
 	if silent
 		set_silent(m)
@@ -21,10 +21,10 @@ function Relaxed(fileName :: String, silent=false)
 
 	@variable(m, e[1:nb_nodes,1:nb_nodes,1:nb_commodities,1:nb_func+1] >= 0) #passage par l'arc (i,j) par la commodité k lpour traitement par la fonction f, ou en direction du puit si on considère e[i,j,k,end] RELAXE
 
-	
-	
-	
-	
+
+
+
+
 	#Constraint on states
 	for i in 1:nb_nodes
 		@constraint(m,[f in 1:nb_func],x_fi[f,i]*func_capacity[f] >= sum(x_ikf[i,k,f]*commodity[k,3] for k in 1:nb_commodities), base_name = "n_"*string(i)) #Nombre de fonctions f à placer en i
@@ -32,8 +32,8 @@ function Relaxed(fileName :: String, silent=false)
 		for k in 1:nb_commodities
 			@constraint(m,[f in 1:nb_func],x_i[i] >= x_ikf[i,k,f], base_name = "ouverture_"*string(i)) #ouverture du noeud en i
 			if size(exclusion[k,:])[1]>0
-				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:]) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
-			end				
+				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:] if w!=0) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
+			end
 			for j in 1:nb_nodes
 				if latency[i,j] == 0
 					@constraint(m,[f in 1:nb_func+1],e[i,j,k,f]==0, base_name = "no_arc_"*string(i)*"_"*string(j)) #absence d'arcs
@@ -41,12 +41,12 @@ function Relaxed(fileName :: String, silent=false)
 			end
 		end
 	end
-	
-	
+
+
 	#Contrainte de flots successifs pour chaque commodité
 	for k in 1:nb_commodities
 		size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
-		
+
 		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
 
 		@constraint(m,sum(e[commodity[k,1],j,k,tab_fk[1]] - e[j,commodity[k,1],k,tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],k,tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot à la source
@@ -57,7 +57,7 @@ function Relaxed(fileName :: String, silent=false)
 		@constraint(m,[i in 1:nb_nodes ; i!=commodity[k,2]],sum(e[i,j,k,nb_func+1] - e[j,i,k,nb_func+1] for j in 1:nb_nodes)-x_ikf[i,k,tab_fk[end]]==0, base_name = "last_flow_"*string(k)) #flot du dernier traitement vers le puit
 		@constraint(m,sum(e[j,commodity[k,2],k,end] for j in 1:nb_nodes)+x_ikf[commodity[k,2],k,tab_fk[end]]==1, base_name = "end_flow_"*string(k)) #fin de flot sur le puit
 	end
-	
+
 	for k in 1:nb_commodities
 		for f in 1:nb_func
 			@constraint(m,sum(x_ikf[i,k,f] for i in 1:nb_nodes)<=1, base_name = "concatenation_"*string(k)*"_"*string(f)) #concatenation des problemes de flot

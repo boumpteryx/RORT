@@ -84,13 +84,12 @@ function read_instance(MyFileName::String)
     exclusion = Array{Int64,2}(zeros(nb_commodities,2))
     for i in 1:nb_commodities
       myLine = readline(myFile)
-      if myLine == "" || myLine == " "
-        println("##### instance invalide, merci de ne pas laisser de fichiers vides #####")
-      end
-      line = parse.(Int64, split(myLine, " "))
-      if length(line) >=2
-        exclusion[i,1] = line[1] + 1
-        exclusion[i,2] = line[2] + 1
+      if myLine != "" && myLine != " "
+        line = parse.(Int64, split(myLine, " "))
+        if length(line) >=2
+          exclusion[i,1] = line[1] + 1
+          exclusion[i,2] = line[2] + 1
+        end
       end
     end
     close(myFile)
