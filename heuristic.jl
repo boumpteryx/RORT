@@ -24,7 +24,7 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 			@constraint(m,[f in 1:nb_func],x_i[i] >= x_ikf[i,k,f], base_name = "ouverture_"*string(i)*"_"*string(f)) #ouverture du noeud en i
 			#@constraint(m,[f in 1:nb_func],x_ikf[i,k,f] <= length( findall( y -> y == f, Fct_commod[k] ))) #fixer à 0 x_ikf si fonction f n'est pas à appliquer à commodite k (donc pas sur le noeud i en particulier)
 			if size(exclusion[k,:])[1]>0
-				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:]) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
+				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:]) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) # exclusion
         # @constraint(m,sum(x_ikf[i,k,w] for w in x_fi_prec[k,:]) <= 1) #contrainte non liante en fait
 			end
 			for j in 1:nb_nodes
@@ -167,4 +167,4 @@ function heuristic(MyFileName::String)
   return sum_objectives, x_i_sum, x_fi_sum, x_ikf_sum, e_sum
 end
 
-heuristic("test")
+heuristic("grille2x3")

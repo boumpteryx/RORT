@@ -44,7 +44,6 @@ function read_instance(MyFileName::String)
     close(myFile)
   end
 
-  
   # Functions
   if isfile(path_Functions)
     myFile = open(path_Functions)
@@ -62,7 +61,7 @@ function read_instance(MyFileName::String)
     end
     close(myFile)
   end
-  
+
   # Fct_commod
   if isfile(path_Fct_commod)
     myFile = open(path_Fct_commod)
@@ -84,7 +83,11 @@ function read_instance(MyFileName::String)
     myFile = open(path_Affinity)
     exclusion = Array{Int64,2}(zeros(nb_commodities,2))
     for i in 1:nb_commodities
-      line = parse.(Int64, split(readline(myFile), " "))
+      myLine = readline(myFile)
+      if myLine == "" || myLine == " "
+        println("##### instance invalide, merci de ne pas laisser de fichiers vides #####")
+      end
+      line = parse.(Int64, split(myLine, " "))
       if length(line) >=2
         exclusion[i,1] = line[1] + 1
         exclusion[i,2] = line[2] + 1
@@ -96,10 +99,10 @@ function read_instance(MyFileName::String)
 end
 
 function write_results(fileName,e,x_ikf)
-  
+
   cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
-  
-  if !isfile("./Resultats/"*fileName*".txt") 
+
+  if !isfile("./Resultats/"*fileName*".txt")
 		touch("./Resultats/"*fileName*".txt")
 	end
 	file = open("./Resultats/"*fileName*".txt","w")
@@ -108,7 +111,7 @@ function write_results(fileName,e,x_ikf)
     size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
 		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
 		write(file,"commod "*string(k)*'\n')
-		
+
     #write source to first function
 		s=commodity[k,1]
 		p= findall( y -> y == 1., x_ikf[:,k,tab_fk[1]])[1,1,1]
@@ -120,7 +123,7 @@ function write_results(fileName,e,x_ikf)
 		end
 		sol=sol*'\n'
 		write(file,sol)
-		
+
     #write function to function
 		for f in tab_fk[2:end]
 			s=p
@@ -134,7 +137,7 @@ function write_results(fileName,e,x_ikf)
 			sol=sol*'\n'
 			write(file,sol)
 		end
-    
+
     #write function to sink
     s=p
     p=commodity[k,2]
@@ -147,10 +150,6 @@ function write_results(fileName,e,x_ikf)
     sol=sol*'\n'
     write(file,sol)
 	end
-	
+
 	close(file)
 end
-
-
-
-
