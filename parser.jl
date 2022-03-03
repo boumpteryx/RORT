@@ -2,11 +2,11 @@
 
 function read_instance(MyFileName::String)
   path = "./Instances/" * MyFileName
-  path_Affinity = path * "_Affinity.txt"
-  path_Commodity = path * "_Commodity.txt"
-  path_Fct_commod = path * "_Fct_commod.txt"
-  path_Functions = path * "_Functions.txt"
-  path_Graph = path * "_Graph.txt"
+  path_Affinity = path * "Affinity.txt"
+  path_Commodity = path * "Commodity.txt"
+  path_Fct_commod = path * "Fct_commod.txt"
+  path_Functions = path * "Functions.txt"
+  path_Graph = path * "Graph.txt"
 
   # Variables
   cout_ouverture = 1
@@ -17,11 +17,13 @@ function read_instance(MyFileName::String)
     readline(myFile)
     nb_nodes = parse(Int64, split(readline(myFile), " ")[2])
     nb_arcs = parse(Int64, split(readline(myFile), " ")[2])
-    latency = Array{Int64,2}(zeros(nb_nodes,nb_nodes))
+    latency = Array{Any,2}(zeros(nb_nodes,nb_nodes))
     nb_functions_per_node = Array{Int64,1}(zeros(nb_nodes))
     for i in 1:nb_arcs
-      line = parse.(Int64, split(readline(myFile), " "))
-      latency[line[1]+1,line[2]+1] = line[5]
+      line = split(replace(readline(myFile), "  " => " "), " ")
+      line5 = parse.(Float64, line[5])
+      line = parse.(Int64, line[1:4])
+      latency[line[1]+1,line[2]+1] = line5
       nb_functions_per_node[line[1]+1] = line[3]
       nb_functions_per_node[line[2]+1] = line[4]
     end
@@ -33,12 +35,12 @@ function read_instance(MyFileName::String)
     myFile = open(path_Commodity)
     readline(myFile)
     nb_commodities = parse(Int64, split(readline(myFile), " ")[2])
-    commodity = Array{Int64,2}(zeros(nb_commodities,4))
+    commodity = Array{Any,2}(zeros(nb_commodities,4))
     for i in 1:nb_commodities
-      line = parse.(Int64, split(readline(myFile), " "))
-      commodity[i,1] = line[1] + 1
-      commodity[i,2] = line[2] + 1
-      commodity[i,3] = line[3]
+      line = parse.(Float64, split(readline(myFile), " "))
+      commodity[i,1] = Int(line[1]) + 1
+      commodity[i,2] = Int(line[2]) + 1
+      commodity[i,3] = Int(line[3])
       commodity[i,4] = line[4]
     end
     close(myFile)
@@ -67,7 +69,7 @@ function read_instance(MyFileName::String)
     myFile = open(path_Fct_commod)
     Fct_commod = Array{Int64,2}(zeros(nb_commodities,nb_func))
 		for i in 1:nb_commodities
-      line = parse.(Int64, split(readline(myFile), " "))
+      line = parse.(Int64, split(readline(myFile), " ")[1:5])
       cpt=1
       for f in line
         Fct_commod[i,f+1]=cpt

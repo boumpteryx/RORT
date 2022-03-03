@@ -41,7 +41,6 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 		size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
 
 		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
-
 		@constraint(m,sum(e[commodity[k,1],j,k,tab_fk[1]] - e[j,commodity[k,1],k,tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],k,tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot à la source
 		@constraint(m,[i in 1:nb_nodes ; i!=commodity[k,1]],sum(e[i,j,k,tab_fk[1]] - e[j,i,k,tab_fk[1]]  for j in 1:nb_nodes)+x_ikf[i,k,tab_fk[1]]==0, base_name = "1er_flot_"*string(k)*"_"*string(i)) #flot pour traiter la première fonction de puis la source
 		for t in 2:size_fk
@@ -66,7 +65,8 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 	optimize!(m)
   for i in 1:nb_nodes
     for f in 1:nb_func
-      remaining_capacity_fi[f,i] = JuMP.value.(x_fi)[f,i]*func_capacity[f] + remaining_capacity_fi[f,i] - JuMP.value.(x_ikf)[i,1,f]*commodity[1,3] # mise a jour de la capacite restante sur les noeuds
+      # ATTENTION, JuMP.value.() renvoie un Float64 qui peut etre inexact (2.999999999595) ce qui fait planter le PLNE 
+      remaining_capacity_fi[f,i] = Int(trunc(JuMP.value.(x_fi)[f,i]))*func_capacity[f] + remaining_capacity_fi[f,i] - Int(trunc(JuMP.value.(x_ikf)[i,1,f]))*commodity[1,3] # mise a jour de la capacite restante sur les noeuds
     end
   end
   return JuMP.value.(x_i), JuMP.objective_value.(m),  JuMP.value.(x_fi), remaining_capacity_fi, JuMP.value.(x_ikf), JuMP.value.(e)
@@ -88,7 +88,7 @@ function heuristic(MyFileName::String)
   Fct_commodity[1] = Fct_commod[1] # create an array with one element, it's simpler
   exclusion_new = Array{Int64,2}(zeros(1,2))
   exclusion_new[1,:] = exclusion[1,:]
-  commodity_new = Array{Int64,2}(zeros(1,4))
+  commodity_new = Array{Any,2}(zeros(1,4))
   commodity_new[1,:] = commodity[1,:]
   remaining_capacity_fi = Array{Int64,2}(zeros(nb_func,nb_nodes))
 
@@ -143,7 +143,7 @@ function heuristic(MyFileName::String)
     Fct_commodity[1] = Fct_commod[i]
     exclusion_new = Array{Int64,2}(zeros(1,2))
     exclusion_new[1,:] = exclusion[i,:]
-    commodity_new = Array{Int64,2}(zeros(1,4))
+    commodity_new = Array{Any,2}(zeros(1,4))
     commodity_new[1,:] = commodity[i,:]
     x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec, remaining_capacity_fi)
     for j in 1:nb_nodes
@@ -167,4 +167,5 @@ function heuristic(MyFileName::String)
   return sum_objectives, x_i_sum, x_fi_sum, x_ikf_sum, e_sum
 end
 
-heuristic("di-yuan_1")
+#heuristic("test_")
+heuristic("di-yuan/di-yuan_1/")
