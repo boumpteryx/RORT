@@ -65,7 +65,7 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 	optimize!(m)
   for i in 1:nb_nodes
     for f in 1:nb_func
-      # ATTENTION, JuMP.value.() renvoie un Float64 qui peut etre inexact (2.999999999595) ce qui fait planter le PLNE 
+      # ATTENTION, JuMP.value.() renvoie un Float64 qui peut etre inexact (2.999999999595) ce qui fait planter le PLNE
       remaining_capacity_fi[f,i] = Int(trunc(JuMP.value.(x_fi)[f,i]))*func_capacity[f] + remaining_capacity_fi[f,i] - Int(trunc(JuMP.value.(x_ikf)[i,1,f]))*commodity[1,3] # mise a jour de la capacite restante sur les noeuds
     end
   end
