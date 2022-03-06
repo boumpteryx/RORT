@@ -1,6 +1,5 @@
 # RORT
 Recherche Opérationnelle dans les Réseaux de Transports
-## Antoine Desjardins & Victor Spitzer
 
 
 Pour ce repo nous utilisons Julia 1.6.3 et CPLEX :
