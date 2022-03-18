@@ -148,6 +148,9 @@ function heuristic(MyFileName::String)
     x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec, remaining_capacity_fi)
     for j in 1:nb_nodes
       x_i_sum[j] = x_i_sum[j] + x_i[j]
+      if x_i_sum[j] > 1
+        x_i_sum[j] = 1
+      end
     end
     for k in 1:nb_nodes
       for j in 1:nb_func
@@ -164,8 +167,8 @@ function heuristic(MyFileName::String)
     end
   end
 
-  return sum_objectives, x_i_sum, x_fi_sum, x_ikf_sum, e_sum
+  return Int(sum_objectives), x_i_sum, x_fi_sum, x_ikf_sum, e_sum
 end
 
-#heuristic("test_")
-heuristic("di-yuan/di-yuan_1/")
+heuristic("test_")
+#heuristic("di-yuan/di-yuan_1/")
