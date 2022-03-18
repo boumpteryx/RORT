@@ -15,15 +15,17 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 	#Column generation
 	not_opti=true
 	while not_opti
+		
 		m = Model(CPLEX.Optimizer)
 		set_silent(m)
 		
 		#variable definition
 		n=size(X_ikf,1)
+
 		@variable(m, lbd[1:n] >= 0)
 		
 		#Convexity constraint
-		@constraint(m,sum(lbd[w] for w in 1:n)==1, base_name="convex")
+		@constraint(m,sum(lbd[w] for w in 1:n)>=1, base_name="convex")
 		
 		#Constraint on states
 		for i in 1:nb_nodes
@@ -36,9 +38,9 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 		#Objective
 		@objective(m, Min, sum(sum(lbd[w]*X_i[w,i] for w in 1:n)*cout_ouverture + sum(sum(lbd[w]*X_fi[w,f,i] for w in 1:n)*func_cost[f,i] for f in 1:nb_func) for i in 1:nb_nodes) )
 		optimize!(m)
-
-		#Calcul dual values and solutions
-		eta=abs(dual(constraint_by_name(m, "convex")))
+		
+		#Calculate dual values and solutions
+		eta=dual(constraint_by_name(m, "convex"))
 		mu_2=Array{Float64,3}(zeros(nb_nodes,nb_commodities,nb_func))
 		mu_3=Array{Float64,2}(zeros(nb_nodes,nb_func))
 		for i in 1:nb_nodes
@@ -49,6 +51,8 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 				end
 			end
 		end		
+	
+		
 		lbd_sol=JuMP.value.(lbd)
 		x_i_sol=sum(lbd_sol[w].*X_i[w,:] for w in 1:n)
 		x_fi_sol=sum(lbd_sol[w].*X_fi[w,:,:] for w in 1:n)
@@ -66,8 +70,8 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 		@variable(m0, x_i[1:nb_nodes] >= 0)
 		@variable(m0, x_fi[1:nb_func,1:nb_nodes]>=0)
 		@constraint(m0,[i in 1:nb_nodes], x_i[i] <= 1) # Relaxed binary constraint
-		#@constraint(m0,[i in 1:nb_nodes], sum(x_fi[f,i] for f in 1:nb_func) <= node_capacity[i], base_name = "cap" ) # (4) capacité de noeud
-		@objective(m0, Min, sum(x_i[i]*(cout_ouverture-sum(sum(mu_2[i,k,f] for f in 1:nb_func) for k in nb_commodities))+sum(x_fi[f,i]*(func_cost[f,i]-mu_3[i,f]*func_capacity[f]) for f in 1:nb_func)  for i in 1:nb_nodes) )
+		@constraint(m0,[i in 1:nb_nodes], sum(x_fi[f,i] for f in 1:nb_func) <= node_capacity[i], base_name = "cap" ) # (4) capacité de noeud
+		@objective(m0, Min, sum(x_i[i]*(cout_ouverture-sum(sum(mu_2[i,k,f] for f in 1:nb_func) for k in 1:nb_commodities))+sum(x_fi[f,i]*(func_cost[f,i]-mu_3[i,f]*func_capacity[f]) for f in 1:nb_func)  for i in 1:nb_nodes) )
 		optimize!(m0)
 
 		
@@ -85,6 +89,13 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 			@variable(mk, x_ikf[1:nb_nodes,1:nb_func] >= 0) 
 			@variable(mk, e[1:nb_nodes,1:nb_nodes,1:nb_func+1] >= 0)
 			
+			for i in 1:nb_nodes
+				@constraint(mk,[f in 1:nb_func], x_ikf[i,f] <= 1) # Relaxed binary constraint
+				for j in 1:nb_nodes
+					@constraint(mk,[f in 1:nb_func+1], e[i,j,f] <= 1) # Relaxed binary constraint
+				end
+			end
+			
 			#Constraints of exclusion and possible arc
 			for i in 1:nb_nodes
 				if size(exclusion[k,:])[1]>0
@@ -98,7 +109,7 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 				
 			end
 			
-			#Contrainte de flots successifs pour chaque commodité
+			#Contrainte de flots successifs 
 			size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
 			tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
 			@constraint(mk,sum(e[commodity[k,1],j,tab_fk[1]] - e[j,commodity[k,1],tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot à la source
@@ -117,13 +128,7 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 			@constraint(mk, sum( sum( sum(e[i,j,f]*latency[i,j] for f in 1:nb_func+1) for j in 1:nb_nodes) for i in 1:nb_nodes) <= commodity[k,4], base_name = "latence_"*string(k))
 			
 			#Objective
-			v=Array{Float64,2}(zeros(nb_nodes,nb_func))
-			for f in 1:nb_func
-				if length( findall( y -> y == f, tab_fk))>0
-					v[:,f]=-commodity[k,3].*mu_3[:,f]
-				end
-			end
-			@objective(mk, Min, - sum(sum((v[i,f] - mu_2[i,k,f])*x_ikf[i,f] for i in 1:nb_nodes) for f in 1:nb_func) )
+			@objective(mk, Min, - sum(sum( (-mu_3[i,f]*commodity[k,3] - mu_2[i,k,f])*x_ikf[i,f] for i in 1:nb_nodes) for f in 1:nb_func) )
 			optimize!(mk)
 			
 			#Update on data 
@@ -132,7 +137,7 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 			E[1,:,:,k,:]=JuMP.value.(e)
 		end
 		
-		#Check if optimality
+		#Check optimality
 		if min_cr>=-1e-7
 			not_opti=false
 		end
@@ -140,7 +145,7 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 		
 		
 	end
-	
+		
 	#Last solve of model to get results
 	m = Model(CPLEX.Optimizer)
 	n=size(X_ikf,1)
@@ -168,9 +173,7 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 	return x_i, x_fi, x_ikf, e
 end
 
-
-io, x_i, x_fi, x_ikf, e = Relaxed("test1",true)
-# bprintln(x_i, x_fi, x_ikf, e)
+io, x_i, x_fi, x_ikf, e = Static("grille2x3",true)
 X_i=Array{Float64,2}(zeros(1,size(x_i,1)))
 X_i[1,:]=x_i
 X_fi=Array{Float64,3}(zeros(1,size(x_fi,1),size(x_fi,2)))
@@ -180,5 +183,11 @@ X_ikf[1,:,:,:]=x_ikf
 E=Array{Float64,5}(zeros(1,size(e,1),size(e,2),size(e,3),size(e,4)))
 E[1,:,:,:,:]=e
 
-a=DW("test1", X_i,X_fi,X_ikf,E)
+
+x_i, x_fi, x_ikf, e=DW("grille2x3", X_i,X_fi,X_ikf,E)
+x_i, x_fi, x_ikf, e=Relaxed("grille2x3")
+println("fin")
+
+
+
 
