@@ -10,7 +10,7 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 		
 	#Data acquisition, model definition
 	cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
-	
+		
 	#state sub-problem definition
 	m0 = Model(CPLEX.Optimizer)
 	set_silent(m0)
@@ -18,54 +18,8 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 	@variable(m0, x_fi[1:nb_func,1:nb_nodes]>=0)
 	@constraint(m0,[i in 1:nb_nodes], x_i[i] <= 1) # Relaxed binary constraint
 	@constraint(m0,[i in 1:nb_nodes], sum(x_fi[f,i] for f in 1:nb_func) <= node_capacity[i], base_name = "cap" ) # (4) capacité de noeud
+
 	
-	#path sub-problems definition
-	for k in 1:nb_commodities
-
-		#model definition
-		global mk = Model(CPLEX.Optimizer)
-		set_silent(mk)
-		@variable(mk, x_ikf[1:nb_nodes,1:nb_func] >= 0) 
-		@variable(mk, e[1:nb_nodes,1:nb_nodes,1:nb_func+1] >= 0)
-
-		for i in 1:nb_nodes
-			@constraint(mk,[f in 1:nb_func], x_ikf[i,f] <= 1) # Relaxed binary constraint
-			for j in 1:nb_nodes
-				@constraint(mk,[f in 1:nb_func+1], e[i,j,f] <= 1) # Relaxed binary constraint
-			end
-		end
-
-		#Constraints of exclusion and possible arc
-		for i in 1:nb_nodes
-			if size(exclusion[k,:])[1]>0
-				@constraint(mk,sum(x_ikf[i,w] for w in exclusion[k,:]) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
-			end				
-			for j in 1:nb_nodes
-				if latency[i,j] == 0
-					@constraint(mk,[f in 1:nb_func+1],e[i,j,f]==0, base_name = "no_arc_"*string(i)*"_"*string(j)) #absence d'arcs
-				end
-			end
-
-		end
-
-		#Contrainte de flots successifs 
-		size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
-		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
-		@constraint(mk,sum(e[commodity[k,1],j,tab_fk[1]] - e[j,commodity[k,1],tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot à la source
-		@constraint(mk,[i in 1:nb_nodes ; i!=commodity[k,1]],sum(e[i,j,tab_fk[1]] - e[j,i,tab_fk[1]]  for j in 1:nb_nodes)+x_ikf[i,tab_fk[1]]==0, base_name = "1er_flot_"*string(k)) #flot pour traiter la première fonction de puis la source
-		for t in 2:size_fk
-			@constraint(mk,[i in 1:nb_nodes],sum(e[i,j,tab_fk[t]] - e[j,i,tab_fk[t]] for j in 1:nb_nodes)-x_ikf[i,tab_fk[t-1]]+x_ikf[i,tab_fk[t]]==0, base_name = "mid_flow_"*string(t)*"_"*string(k)) #flot d'un traitement au suivant
-		end
-		@constraint(mk,[i in 1:nb_nodes ; i!=commodity[k,2]],sum(e[i,j,nb_func+1] - e[j,i,nb_func+1] for j in 1:nb_nodes)-x_ikf[i,tab_fk[end]]==0, base_name = "last_flow_"*string(k)) #flot du dernier traitement vers le puit
-		@constraint(mk,sum(e[j,commodity[k,2],end] for j in 1:nb_nodes)+x_ikf[commodity[k,2],tab_fk[end]]==1, base_name = "end_flow_"*string(k)) #fin de flot sur le puit
-
-		for f in 1:nb_func
-			@constraint(mk,sum(x_ikf[i,f] for i in 1:nb_nodes)<=1, base_name = "concatenation_"*string(k)*"_"*string(f)) #concatenation des problemes de flot
-		end
-
-		#Contraintes de latence
-		@constraint(mk, sum( sum( sum(e[i,j,f]*latency[i,j] for f in 1:nb_func+1) for j in 1:nb_nodes) for i in 1:nb_nodes) <= commodity[k,4], base_name = "latence_"*string(k))
-	end
 	
 	#Column generation
 	not_opti=true
@@ -101,28 +55,75 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 		
 		#setup for next column to add on first index
 		min_cr=-eta #Minimum ecart complementaire
-		X_i=vcat(X_i[1:1,:],X_i)
-		X_fi=vcat(X_fi[1:1,:,:],X_fi)
-		X_ikf=vcat(X_ikf[1:1,:,:,:],X_ikf)
-		E=vcat(E[1:1,:,:,:,:],E)
+		X_i=vcat(X_i,X_i[1:1,:])
+		X_fi=vcat(X_fi,X_fi[1:1,:,:])
+		X_ikf=vcat(X_ikf,X_ikf[1:1,:,:,:])
+		E=vcat(E,E[1:1,:,:,:,:])
 		
 		#state sub-problem resolution
 		@objective(m0, Min, sum(x_i[i]*(cout_ouverture-sum(sum(mu_2[i,k,f] for f in 1:nb_func) for k in 1:nb_commodities))+sum(x_fi[f,i]*(func_cost[f,i]-mu_3[i,f]*func_capacity[f]) for f in 1:nb_func)  for i in 1:nb_nodes) )
 		optimize!(m0)
 		min_cr=min_cr+objective_value(m0)
-		X_i[1,:]=JuMP.value.(x_i)
-		X_fi[1,:,:]=JuMP.value.(x_fi)
+		X_i[end,:]=JuMP.value.(x_i)
+		X_fi[end,:,:]=JuMP.value.(x_fi)
 
 		#path sub-problems resolution
 		for k in 1:nb_commodities
+
+			#model definition
+			mk = Model(CPLEX.Optimizer)
+			set_silent(mk)
+			@variable(mk, x_ikf[1:nb_nodes,1:nb_func] >= 0) 
+			@variable(mk, e[1:nb_nodes,1:nb_nodes,1:nb_func+1] >= 0)
+
+			for i in 1:nb_nodes
+				@constraint(mk,[f in 1:nb_func], x_ikf[i,f] <= 1) # Relaxed binary constraint
+				for j in 1:nb_nodes
+					@constraint(mk,[f in 1:nb_func+1], e[i,j,f] <= 1) # Relaxed binary constraint
+				end
+			end
+
+			#Constraints of exclusion and possible arc
+			for i in 1:nb_nodes
+				if exclusion[k,1]>0
+					@constraint(mk,sum(x_ikf[i,w] for w in exclusion[k,:]) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) #exclusion
+				end				
+				for j in 1:nb_nodes
+					if latency[i,j] == 0
+						@constraint(mk,[f in 1:nb_func+1],e[i,j,f]==0, base_name = "no_arc_"*string(i)*"_"*string(j)) #absence d'arcs
+					end
+				end
+			end
+
+			#Contrainte de flots successifs 
+			size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
+			tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
+			@constraint(mk,sum(e[commodity[k,1],j,tab_fk[1]] - e[j,commodity[k,1],tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot à la source
+			@constraint(mk,[i in 1:nb_nodes ; i!=commodity[k,1]],sum(e[i,j,tab_fk[1]] - e[j,i,tab_fk[1]]  for j in 1:nb_nodes)+x_ikf[i,tab_fk[1]]==0, base_name = "1er_flot_"*string(k)) #flot pour traiter la première fonction de puis la source
+			for t in 2:size_fk
+				@constraint(mk,[i in 1:nb_nodes],sum(e[i,j,tab_fk[t]] - e[j,i,tab_fk[t]] for j in 1:nb_nodes)-x_ikf[i,tab_fk[t-1]]+x_ikf[i,tab_fk[t]]==0, base_name = "mid_flow_"*string(t)*"_"*string(k)) #flot d'un traitement au suivant
+			end
+			@constraint(mk,[i in 1:nb_nodes ; i!=commodity[k,2]],sum(e[i,j,nb_func+1] - e[j,i,nb_func+1] for j in 1:nb_nodes)-x_ikf[i,tab_fk[end]]==0, base_name = "last_flow_"*string(k)) #flot du dernier traitement vers le puit
+			@constraint(mk,sum(e[j,commodity[k,2],end] for j in 1:nb_nodes)+x_ikf[commodity[k,2],tab_fk[end]]==1, base_name = "end_flow_"*string(k)) #fin de flot sur le puit
+
+			for f in 1:nb_func
+				@constraint(mk,sum(x_ikf[i,f] for i in 1:nb_nodes)<=1, base_name = "concatenation_"*string(k)*"_"*string(f)) #concatenation des problemes de flot
+			end
+
+			#Contraintes de latence
+			@constraint(mk, sum( sum( sum(e[i,j,f]*latency[i,j] for f in 1:nb_func+1) for j in 1:nb_nodes) for i in 1:nb_nodes) <= commodity[k,4], base_name = "latence_"*string(k))
+			
+			#Resolution
 			@objective(mk, Min, - sum(sum( (-mu_3[i,f]*commodity[k,3] - mu_2[i,k,f])*x_ikf[i,f] for i in 1:nb_nodes) for f in 1:nb_func) )
 			optimize!(mk)
 			min_cr = min_cr + objective_value(mk)
-			X_ikf[1,:,k,:]=JuMP.value.(x_ikf)
-			E[1,:,:,k,:]=JuMP.value.(e)
+			X_ikf[end,:,k,:]=JuMP.value.(x_ikf)
+			E[end,:,:,k,:]=JuMP.value.(e)		
 		end
+
 		
 		#Check optimality
+		println(min_cr)
 		if min_cr>=-1e-7
 			not_opti=false
 		end
@@ -153,7 +154,7 @@ function DW(fileName :: String, X_i::Array{Float64,2},  X_fi::Array{Float64,3}, 
 	return x_i, x_fi, x_ikf, e
 end
 
-io, x_i, x_fi, x_ikf, e = Static("test",true)
+io, x_i, x_fi, x_ikf, e = Static("di-yuan/di-yuan_1/",true)
 X_i=Array{Float64,2}(zeros(1,size(x_i,1)))
 X_i[1,:]=x_i
 X_fi=Array{Float64,3}(zeros(1,size(x_fi,1),size(x_fi,2)))
@@ -164,8 +165,8 @@ E=Array{Float64,5}(zeros(1,size(e,1),size(e,2),size(e,3),size(e,4)))
 E[1,:,:,:,:]=e
 
 
-x_i, x_fi, x_ikf, e=DW("test", X_i,X_fi,X_ikf,E)
-#x_i, x_fi, x_ikf, e=Relaxed("test")
+x_i, x_fi, x_ikf, e=DW("di-yuan/di-yuan_1/", X_i,X_fi,X_ikf,E)
+x_i, x_fi, x_ikf, e=Relaxed("di-yuan/di-yuan_1/")
 println("fin")
 
 
