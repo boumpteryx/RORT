@@ -80,4 +80,4 @@ function Static(fileName :: String,silent=false)
 	return isOptimal, JuMP.value.(x_i), JuMP.value.(x_fi), JuMP.value.(x_ikf), JuMP.value.(e)
 end
 
-Static("grille2x3")
+Static("di-yuan/di-yuan_1/")

@@ -2,17 +2,16 @@ using JuMP
 using CPLEX
 include("parser.jl")
 
-function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion, y_fi, x_fi_prec, remaining_capacity_fi)
+function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion, x_fi_prec, remaining_capacity_fi)
   # version modifiee du PL normal
-  # y_fi inutile
   # on ajoute la contrainte de non-overlap entre les fonctions de x_fi_prec et celles posees dans cette instance DONE
-  # remaining_capacity_fi TODO
+  # remaining_capacity_fi DONE
 
   m = Model(CPLEX.Optimizer)
 
 	# Var
 	@variable(m, x_i[1:nb_nodes], Bin) # activation d'une fonction au sommet i
-	@variable(m, x_fi[1:nb_func,1:nb_nodes], Int) # activation de la fonction f au sommet i
+	@variable(m, x_fi[1:nb_func,1:nb_nodes], Int) # activation(s) de la fonction f au sommet i
 	@variable(m, x_ikf[1:nb_nodes,1:nb_commodities,1:nb_func], Bin) # activation de la fonction f au sommet i pour le traitement de la commodite k
 	@variable(m, e[1:nb_nodes,1:nb_nodes,1:nb_commodities,1:nb_func+1], Bin) # passage par l'arc (i,j) par la commodite k lpour traitement par la fonction f, ou en direction du puit si on considère e[i,j,k,end]
 
@@ -82,7 +81,6 @@ function heuristic(MyFileName::String)
     cout_ouverture[i] = c
   end
   sum_objectives = 0
-  y_fi = Array{Int64,2}(zeros(nb_func,nb_nodes))
   x_fi_prec = Array{Int64,2}(zeros(nb_func,nb_nodes))
   Fct_commodity = Array{Int64,1}(zeros(1))
   Fct_commodity[1] = Fct_commod[1] # create an array with one element, it's simpler
@@ -97,7 +95,7 @@ function heuristic(MyFileName::String)
   x_ikf_sum = Array{Int64,3}(zeros(nb_nodes,nb_commodities,nb_func))
   e_sum = Array{Int64,4}(zeros(nb_nodes,nb_nodes,nb_commodities, nb_func+1))
 
-  x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec, remaining_capacity_fi)
+  x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, x_fi_prec, remaining_capacity_fi)
   for j in 1:nb_nodes
     x_i_sum[j] = x_i_sum[j] + x_i[j]
   end
@@ -117,23 +115,23 @@ function heuristic(MyFileName::String)
 
 
   for i in 2:nb_commodities
-  println("commodite ", i)
+    println("commodite ", i)
     # update node_capacity
     for k in 1:nb_nodes
       for j in 1:nb_func
-        node_capacity[k] = node_capacity[k] - x_fi[j,k]
+        node_capacity[k] = max(0, node_capacity[k] - x_fi[j,k])
       end
     end
 
     # update cout_ouverture
     for k in 1:nb_nodes
-      cout_ouverture[k] = cout_ouverture[k] - c * x_i[k]
+      cout_ouverture[k] = max(0, cout_ouverture[k] - c * x_i[k])
     end
 
     # update x_fi_prec
     for k in 1:nb_nodes
       for j in 1:nb_func
-        x_fi_prec[j,k] = x_fi_prec[j,k] + x_fi[j,k]
+        x_fi_prec[j,k] = Int(trunc(x_fi[j,k])) + x_fi_prec[j,k]
       end
     end
 
@@ -145,7 +143,7 @@ function heuristic(MyFileName::String)
     exclusion_new[1,:] = exclusion[i,:]
     commodity_new = Array{Any,2}(zeros(1,4))
     commodity_new[1,:] = commodity[i,:]
-    x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, y_fi, x_fi_prec, remaining_capacity_fi)
+    x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, x_fi_prec, remaining_capacity_fi)
     for j in 1:nb_nodes
       x_i_sum[j] = x_i_sum[j] + x_i[j]
       if x_i_sum[j] > 1
@@ -154,7 +152,7 @@ function heuristic(MyFileName::String)
     end
     for k in 1:nb_nodes
       for j in 1:nb_func
-        x_fi_sum[j,k] = x_fi_sum[j,k] + x_fi[j,k]
+        x_fi_sum[j,k] = x_fi_sum[j,k] + Int(trunc(x_fi[j,k]))
       end
     end
     for j in 1:nb_nodes
@@ -166,9 +164,8 @@ function heuristic(MyFileName::String)
       end
     end
   end
-
-  return Int(sum_objectives), x_i_sum, x_fi_sum, x_ikf_sum, e_sum
+  return Int(trunc(sum_objectives)), x_i_sum, x_fi_sum, x_ikf_sum, e_sum
 end
 
-heuristic("test_")
-#heuristic("di-yuan/di-yuan_1/")
+# heuristic("test_")
+heuristic("di-yuan/di-yuan_1/")
