@@ -6,7 +6,7 @@ export Static
 
 function Static(fileName :: String,silent=false)
 	cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
-
+	
 	m = Model(CPLEX.Optimizer)
 	if silent
 		set_silent(m)

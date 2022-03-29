@@ -2,9 +2,8 @@ using JuMP
 using CPLEX
 include("parser.jl")
 
-function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion, x_fi_prec, remaining_capacity_fi)
+function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion, remaining_capacity_fi)
   # version modifiee du PL normal
-  # on ajoute la contrainte de non-overlap entre les fonctions de x_fi_prec et celles posees dans cette instance DONE
   # remaining_capacity_fi DONE
 
   m = Model(CPLEX.Optimizer)
@@ -24,7 +23,6 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 			#@constraint(m,[f in 1:nb_func],x_ikf[i,k,f] <= length( findall( y -> y == f, Fct_commod[k] ))) #fixer à 0 x_ikf si fonction f n'est pas à appliquer à commodite k (donc pas sur le noeud i en particulier)
 			if size(exclusion[k,:])[1]>0
 				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:] if w!=0) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) # exclusion
-        # @constraint(m,sum(x_ikf[i,k,w] for w in x_fi_prec[k,:]) <= 1) #contrainte non liante en fait
 			end
 			for j in 1:nb_nodes
 				if latency[i,j] == 0
@@ -81,7 +79,6 @@ function heuristic(MyFileName::String)
     cout_ouverture[i] = c
   end
   sum_objectives = 0
-  x_fi_prec = Array{Int64,2}(zeros(nb_func,nb_nodes))
   Fct_commodity = Array{Int64,1}(zeros(1))
   Fct_commodity[1] = Fct_commod[1] # create an array with one element, it's simpler
   exclusion_new = Array{Int64,2}(zeros(1,2))
@@ -95,7 +92,8 @@ function heuristic(MyFileName::String)
   x_ikf_sum = Array{Int64,3}(zeros(nb_nodes,nb_commodities,nb_func))
   e_sum = Array{Int64,4}(zeros(nb_nodes,nb_nodes,nb_commodities, nb_func+1))
 
-  x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, x_fi_prec, remaining_capacity_fi)
+  x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, remaining_capacity_fi)
+  println("##########################", current_objective)
   for j in 1:nb_nodes
     x_i_sum[j] = x_i_sum[j] + x_i[j]
   end
@@ -115,7 +113,6 @@ function heuristic(MyFileName::String)
 
 
   for i in 2:nb_commodities
-    println("commodite ", i)
     # update node_capacity
     for k in 1:nb_nodes
       for j in 1:nb_func
@@ -128,13 +125,6 @@ function heuristic(MyFileName::String)
       cout_ouverture[k] = max(0, cout_ouverture[k] - c * x_i[k])
     end
 
-    # update x_fi_prec
-    for k in 1:nb_nodes
-      for j in 1:nb_func
-        x_fi_prec[j,k] = Int(trunc(x_fi[j,k])) + x_fi_prec[j,k]
-      end
-    end
-
     # update sum_objectives
     sum_objectives = sum_objectives + current_objective
     Fct_commodity = Array{Int64,1}(zeros(1))
@@ -143,7 +133,7 @@ function heuristic(MyFileName::String)
     exclusion_new[1,:] = exclusion[i,:]
     commodity_new = Array{Any,2}(zeros(1,4))
     commodity_new[1,:] = commodity[i,:]
-    x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, x_fi_prec, remaining_capacity_fi)
+    x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, remaining_capacity_fi)
     for j in 1:nb_nodes
       x_i_sum[j] = x_i_sum[j] + x_i[j]
       if x_i_sum[j] > 1
