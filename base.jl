@@ -4,8 +4,9 @@ include("parser.jl")
 
 export Static
 
-function Static(fileName :: String, silent=false)
+function Static(fileName :: String,silent=true)
 	cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
+	
 	m = Model(CPLEX.Optimizer)
 	if silent
 		set_silent(m)
@@ -79,4 +80,4 @@ function Static(fileName :: String, silent=false)
 	return isOptimal, JuMP.value.(x_i), JuMP.value.(x_fi), JuMP.value.(x_ikf), JuMP.value.(e)
 end
 
-Static("di-yuan/di-yuan_3/")
+Static("di-yuan/di-yuan_1/")
