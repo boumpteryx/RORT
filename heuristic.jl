@@ -32,7 +32,6 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 		end
 	end
 
-
 	#Contrainte de flots successifs pour chaque commodite
 	for k in 1:nb_commodities
 		size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
@@ -63,9 +62,10 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
   for i in 1:nb_nodes
     for f in 1:nb_func
       # ATTENTION, JuMP.value.() renvoie un Float64 qui peut etre inexact (2.999999999595) ce qui fait planter le PLNE
-      #remaining_capacity_fi[f,i] = Int(trunc(JuMP.value.(x_fi)[f,i]))*func_capacity[f] + remaining_capacity_fi[f,i] - Int(trunc(JuMP.value.(x_ikf)[i,1,f]))*commodity[1,3] # mise a jour de la capacite restante sur les noeuds
+      remaining_capacity_fi[f,i] = Int(trunc(JuMP.value.(x_fi)[f,i]))*func_capacity[f] + remaining_capacity_fi[f,i] - Int(trunc(JuMP.value.(x_ikf)[i,1,f]))*commodity[1,3] # mise a jour de la capacite restante sur les noeuds
     end
   end
+  status = termination_status(m)
   isOptimal = status == MOI.OPTIMAL
   if isOptimal == true
     return JuMP.value.(x_i), JuMP.objective_value.(m),  JuMP.value.(x_fi), remaining_capacity_fi, JuMP.value.(x_ikf), JuMP.value.(e), isOptimal
