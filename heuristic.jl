@@ -102,11 +102,11 @@ function heuristic(MyFileName::String)
     return false
   end
   for j in 1:nb_nodes
-    x_i_sum[j] = x_i_sum[j] + x_i[j]
+    x_i_sum[j] = x_i_sum[j] + Int(trunc(x_i[j]))
   end
   for k in 1:nb_nodes
     for j in 1:nb_func
-      x_fi_sum[j,k] = x_fi_sum[j,k] + x_fi[j,k]
+      x_fi_sum[j,k] = x_fi_sum[j,k] + Int(trunc(x_fi[j,k]))
     end
   end
   for j in 1:nb_nodes
@@ -114,7 +114,9 @@ function heuristic(MyFileName::String)
   end
   for j in 1:nb_nodes
     for l in 1:nb_nodes
-      e_sum[j,l,1,:] = e[j,l,1,:]
+      for zz in 1:nb_func+1
+        e_sum[j,l,1,zz] = Int(trunc(e[j,l,1,zz]))
+      end
     end
   end
 
