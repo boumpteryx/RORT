@@ -70,7 +70,7 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
   if isOptimal == true
     return JuMP.value.(x_i), JuMP.objective_value.(m),  JuMP.value.(x_fi), remaining_capacity_fi, JuMP.value.(x_ikf), JuMP.value.(e), isOptimal
   end
-  return Array{Int64,1}(zeros(nb_nodes)), Array{Int64,2}(zeros(nb_func,nb_nodes)), remaining_capacity_fi, Array{Int64,3}(zeros(nb_nodes,nb_commodities,nb_func)), Array{Int64,4}(zeros(nb_nodes,nb_nodes,nb_commodities, nb_func+1)), isOptimal
+  return Array{Int64,1}(zeros(nb_nodes)), 0, Array{Int64,2}(zeros(nb_func,nb_nodes)), remaining_capacity_fi, Array{Int64,3}(zeros(nb_nodes,nb_commodities,nb_func)), Array{Int64,4}(zeros(nb_nodes,nb_nodes,nb_commodities, nb_func+1)), isOptimal
 end
 
 
@@ -173,4 +173,4 @@ function heuristic(MyFileName::String)
 end
 
 # heuristic("test_")
-heuristic("di-yuan/di-yuan_3/")
+heuristic("di-yuan/di-yuan_1/")
