@@ -16,11 +16,11 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 
 	#Constraint on states
 	for i in 1:nb_nodes
-		@constraint(m,[f in 1:nb_func], x_fi[f,i]*func_capacity[f] + remaining_capacity_fi[f,i] >= sum(x_ikf[i,k,f]*commodity[k,3] for k in 1:nb_commodities), base_name = "n_"*string(f)*"_"*string(i)) # Nombre de fonctions f à placer en i
+		@constraint(m,[f in 1:nb_func], x_fi[f,i]*func_capacity[f] + remaining_capacity_fi[f,i] >= sum(x_ikf[i,k,f]*commodity[k,3] for k in 1:nb_commodities), base_name = "n_"*string(f)*"_"*string(i)) # Nombre de fonctions f a placer en i
 		@constraint(m,sum(x_fi[f,i] for f in 1:nb_func) <= node_capacity[i], base_name = "cap_"*string(i) ) #capacite de noeud
     for k in 1:nb_commodities
 			@constraint(m,[f in 1:nb_func],x_i[i] >= x_ikf[i,k,f], base_name = "ouverture_"*string(i)*"_"*string(f)) #ouverture du noeud en i
-			#@constraint(m,[f in 1:nb_func],x_ikf[i,k,f] <= length( findall( y -> y == f, Fct_commod[k] ))) #fixer à 0 x_ikf si fonction f n'est pas à appliquer à commodite k (donc pas sur le noeud i en particulier)
+			#@constraint(m,[f in 1:nb_func],x_ikf[i,k,f] <= length( findall( y -> y == f, Fct_commod[k] ))) #fixer a 0 x_ikf si fonction f n'est pas a appliquer a commodite k (donc pas sur le noeud i en particulier)
 			if size(exclusion[k,:])[1]>0
 				@constraint(m,sum(x_ikf[i,k,w] for w in exclusion[k,:] if w!=0) <= 1, base_name = "exclusion_"*string(k)*"_"*string(i)) # exclusion
 			end
@@ -38,7 +38,7 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
 		size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
 
 		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
-		@constraint(m,sum(e[commodity[k,1],j,k,tab_fk[1]] - e[j,commodity[k,1],k,tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],k,tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot à la source
+		@constraint(m,sum(e[commodity[k,1],j,k,tab_fk[1]] - e[j,commodity[k,1],k,tab_fk[1]] for j in 1:nb_nodes)-x_ikf[commodity[k,1],k,tab_fk[1]]==1, base_name = "init_flot_"*string(k)) #initialisation du flot a la source
 		@constraint(m,[i in 1:nb_nodes ; i!=commodity[k,1]],sum(e[i,j,k,tab_fk[1]] - e[j,i,k,tab_fk[1]]  for j in 1:nb_nodes)+x_ikf[i,k,tab_fk[1]]==0, base_name = "1er_flot_"*string(k)*"_"*string(i)) #flot pour traiter la première fonction de puis la source
 		for t in 2:size_fk
 			@constraint(m,[i in 1:nb_nodes],sum(e[i,j,k,tab_fk[t]] - e[j,i,k,tab_fk[t]] for j in 1:nb_nodes)-x_ikf[i,k,tab_fk[t-1]]+x_ikf[i,k,tab_fk[t]]==0, base_name = "mid_flow_"*string(t)*"_"*string(k)*"_"*string(i)) #flot d'un traitement au suivant
@@ -66,7 +66,11 @@ function PL_heuristic(cout_ouverture, Fct_commod, func_cost, func_capacity, nb_n
       #remaining_capacity_fi[f,i] = Int(trunc(JuMP.value.(x_fi)[f,i]))*func_capacity[f] + remaining_capacity_fi[f,i] - Int(trunc(JuMP.value.(x_ikf)[i,1,f]))*commodity[1,3] # mise a jour de la capacite restante sur les noeuds
     end
   end
-  return JuMP.value.(x_i), JuMP.objective_value.(m),  JuMP.value.(x_fi), remaining_capacity_fi, JuMP.value.(x_ikf), JuMP.value.(e)
+  isOptimal = status == MOI.OPTIMAL
+  if isOptimal == true
+    return JuMP.value.(x_i), JuMP.objective_value.(m),  JuMP.value.(x_fi), remaining_capacity_fi, JuMP.value.(x_ikf), JuMP.value.(e), isOptimal
+  end
+  return Array{Int64,1}(zeros(nb_nodes)), Array{Int64,2}(zeros(nb_func,nb_nodes)), remaining_capacity_fi, Array{Int64,3}(zeros(nb_nodes,nb_commodities,nb_func)), Array{Int64,4}(zeros(nb_nodes,nb_nodes,nb_commodities, nb_func+1)), isOptimal
 end
 
 
@@ -92,8 +96,11 @@ function heuristic(MyFileName::String)
   x_ikf_sum = Array{Int64,3}(zeros(nb_nodes,nb_commodities,nb_func))
   e_sum = Array{Int64,4}(zeros(nb_nodes,nb_nodes,nb_commodities, nb_func+1))
 
-  x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, remaining_capacity_fi)
-  println("##########################", current_objective)
+  x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e, isOptimal = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, remaining_capacity_fi)
+  if isOptimal == false
+    println("non soluble par cette methode")
+    return false
+  end
   for j in 1:nb_nodes
     x_i_sum[j] = x_i_sum[j] + x_i[j]
   end
@@ -133,7 +140,11 @@ function heuristic(MyFileName::String)
     exclusion_new[1,:] = exclusion[i,:]
     commodity_new = Array{Any,2}(zeros(1,4))
     commodity_new[1,:] = commodity[i,:]
-    x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, remaining_capacity_fi)
+    x_i, current_objective, x_fi, remaining_capacity_fi, x_ikf, e, isOptimal = PL_heuristic(cout_ouverture, Fct_commodity, func_cost, func_capacity, nb_nodes, nb_arcs, 1, latency, node_capacity, commodity_new, nb_func, exclusion_new, remaining_capacity_fi)
+    if isOptimal == false
+      println("non soluble par cette methode")
+      return false
+    end
     for j in 1:nb_nodes
       x_i_sum[j] = x_i_sum[j] + Int(trunc(x_i[j]))
       if x_i_sum[j] > 1
