@@ -1,41 +1,53 @@
 using JuMP
 using CPLEX
-include("parser.jl")
 include("relaxed.jl")
 include("base.jl")
 include("DW_mp_dual.jl")
 include("heuristic.jl")
 
+function test(str)
+	Relaxed("di-yuan/di-yuan_1/")
+	t=time()
+	Relaxed(str)
+	t = round(time()-t, digits=2)
+	println(t)
+
+
+	
+	return 0
+end
+
 function func()
-	dir_tab=["abilene","atlanta","dfn-bwin","dfn-gwin","di-yuan","newyork","nobel-germany","nobel-us","pdh","polska"]
-
-	f = open("perf.txt","w")
-
+	dir_tab=["pdh","di-yuan","abilene","atlanta","dfn-bwin","dfn-gwin","newyork","nobel-germany","nobel-us","polska"]
 
 	for dir in dir_tab
-		println(Static("di-yuan/di-yuan_1/")[2])
-
 		
 		files = readdir("Instances/"*dir)
 		for file in files
-			println(file)
 			
-			println(dir)
-			println(Static("di-yuan/di-yuan_1/")[2])
-
+			f = open("perf.txt","w")
 			
-			str=dir*"/"*file
+			str=dir*"/"*file*"/"
+			
+			println(str)
 
 			write(f,file*" & ")
-			println(Static(str, silent=true))
-			t = round(@elapsed Relaxed(str, silent=true), digits=2)
+			
+			t = time()
+			val1 = Relaxed(str)[1]
+			t = round(time()-t, digits=2)
 			write(file,string(t)*" & ")
 
-			t = round(@elapsed Static(str, silent=true), digits=2)
+			t = time()
+			val2 = Static(str)[1]
+			t = round(time()-t, digits=2)
 			write(file,string(t)*" & ")
 
-			if heuristic(dir*"/"*file)
-				t = round(@elapsed heuristic(str), digit=2)
+			if heuristic(str)
+				
+				t = time()
+				heuristic(str)
+				t = round(time()-t, digits=2)
 				write(file,string(t)*" & ")
 
 				ov, x_i, x_fi, x_ikf, e = heuristic(str,res=true)
@@ -48,16 +60,20 @@ function func()
 				E=Array{Float64,5}(zeros(1,size(e,1),size(e,2),size(e,3),size(e,4)))
 				E[1,:,:,:,:]=e
 
-				t = round(@elapsed DW_md(str,X_i,X_fi,X_ikf,E), digit=2)
-				write(file,string(t))
+				t = time()
+				DW_md(str,X_i,X_fi,X_ikf,E)
+				t = round(time()-t, digits=2)
+				write(file,string(t)*" & ")
 			else
-				write(file," \emptyset & \empty set")
+				write(file," \emptyset & \empty set & ")
 			end
-			write(file,'\n')
+			write(file,string(val2)*" & "*string(val1)*'\n')
+			
+			close(f)
+
 		end
 	end
 
-	close(f)
 end
 
 func()
